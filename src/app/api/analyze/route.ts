@@ -3,8 +3,10 @@ import { analyzeRequestSchema } from "@/lib/analysis-schema";
 import { AnalysisError, analyzeVacancy } from "@/lib/gemini";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Two attempts × 40 s timeout fit into this budget.
-export const maxDuration = 90;
+// Worst case: two attempts × 25 s (REQUEST_TIMEOUT_MS in lib/gemini.ts) = 50 s,
+// leaving ~10 s for validation and cold start. 60 s is also the Vercel Hobby
+// ceiling when Fluid Compute is off, so the route deploys on any plan.
+export const maxDuration = 60;
 
 function errorResponse(status: number, message: string, headers?: HeadersInit) {
   return NextResponse.json({ error: message }, { status, headers });

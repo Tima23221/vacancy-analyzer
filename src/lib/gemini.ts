@@ -7,7 +7,8 @@ import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 // Stable Flash model available on the free tier. Newer previews (e.g. gemini-3.8-flash)
 // can be enabled via GEMINI_MODEL, but on the free tier they often answer 503 "high demand".
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
-const REQUEST_TIMEOUT_MS = 40_000;
+// Per-attempt timeout. Two attempts must fit into the route's maxDuration (60 s).
+const REQUEST_TIMEOUT_MS = 25_000;
 
 export type AnalysisErrorCode = "rate_limited" | "config" | "upstream";
 
@@ -50,9 +51,10 @@ async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
       responseMimeType: "application/json",
       responseSchema: geminiResponseSchema,
       temperature: 0.4,
-      // Gemini 3.x thinks by default; extraction doesn't need deep reasoning and
-      // low thinking keeps answers fast. Older models don't accept thinkingLevel.
-      ...(/gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+      // Gemini 3.x thinks by default. Extraction doesn't need deep reasoning, and
+      // minimal thinking keeps answers well inside the 25 s attempt timeout.
+      // Older models don't accept thinkingLevel.
+      ...(/gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } } : {}),
       abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
   });
