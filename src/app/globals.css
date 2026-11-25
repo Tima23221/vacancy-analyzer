@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  Palette: cool-leaning paper, graphite ink, one accent (moss green, the colour
+  of a "match"). Brick and ochre are reserved for red-flag severity only.
+*/
+@theme {
+  --color-paper: #f7f6f2;
+  --color-field: #fdfcfa;
+  --color-ink: #1d1c1a;
+  --color-ink-soft: #4a4742;
+  --color-muted: #6b675f;
+  --color-line: #e2ded5;
+  --color-line-strong: #cdc8bc;
+  --color-accent: #2f6b4f;
+  --color-accent-strong: #24553e;
+  --color-accent-wash: #e7efe9;
+  --color-danger: #a63d2b;
+  --color-danger-wash: #f6e7e2;
+  --color-warn: #96620f;
+  --color-warn-wash: #f5ecd9;
+
+  --font-sans: var(--font-onest), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 0;
+}
+
+::selection {
+  background: var(--color-accent-wash);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 150ms;
+  }
+  .link-button:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+@keyframes score-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.score-fill {
+  transform-origin: left center;
+  animation: score-fill 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-fill {
+    animation: none;
+  }
+  .animate-pulse {
+    animation: none;
+  }
 }
