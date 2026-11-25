@@ -13,7 +13,7 @@ type State =
   | { status: "error"; message: string }
   | { status: "done"; analysis: Analysis; hasResume: boolean };
 
-const CLIENT_TIMEOUT_MS = 70_000;
+const CLIENT_TIMEOUT_MS = 100_000;
 
 export function Analyzer() {
   const [vacancy, setVacancy] = useState("");

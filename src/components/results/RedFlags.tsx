@@ -39,7 +39,7 @@ export function RedFlags({ flags }: { flags: RedFlag[] }) {
   const sorted = [...flags].sort((a, b) => ORDER.indexOf(a.severity) - ORDER.indexOf(b.severity));
 
   return (
-    <ul className="space-y-3">
+    <ul className="divide-y divide-line border-y border-line">
       {sorted.map((flag, index) => {
         const category = CATEGORY[flag.category];
         const severity = SEVERITY[flag.severity];
@@ -47,9 +47,9 @@ export function RedFlags({ flags }: { flags: RedFlag[] }) {
         return (
           <li
             key={`${flag.title}-${index}`}
-            className="relative overflow-hidden rounded-lg border border-line bg-field py-3.5 pl-5 pr-4"
+            className="relative py-4 pl-5"
           >
-            <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${severity.bar}`} />
+            <span aria-hidden className={`absolute bottom-4 left-0 top-4 w-[3px] rounded-full ${severity.bar}`} />
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]">
               <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold ${severity.wash} ${severity.text}`}>
                 {severity.label}

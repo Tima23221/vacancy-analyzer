@@ -45,7 +45,7 @@ export function MatchScore({ match }: { match: Match }) {
 
       <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-ink-soft">{match.summary}</p>
 
-      <div className="mt-5 grid gap-6 sm:grid-cols-2">
+      <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
         <ScoreList title="Совпадает" items={match.strengths} tone="good" />
         <ScoreList title="Не хватает" items={match.gaps} tone="gap" />
       </div>

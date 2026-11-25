@@ -1,10 +1,12 @@
 import "server-only";
-import { ApiError, GoogleGenAI } from "@google/genai";
+import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { analysisSchema, geminiResponseSchema, type Analysis } from "./analysis-schema";
 import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
-const REQUEST_TIMEOUT_MS = 25_000;
+// Stable Flash model available on the free tier. Newer previews (e.g. gemini-3.8-flash)
+// can be enabled via GEMINI_MODEL, but on the free tier they often answer 503 "high demand".
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+const REQUEST_TIMEOUT_MS = 40_000;
 
 export type AnalysisErrorCode = "rate_limited" | "config" | "upstream";
 
@@ -38,14 +40,18 @@ function getModel(): string {
 }
 
 async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
+  const model = getModel();
   const response = await getClient().models.generateContent({
-    model: getModel(),
+    model,
     contents: buildUserPrompt(vacancy, resume),
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       responseMimeType: "application/json",
       responseSchema: geminiResponseSchema,
       temperature: 0.4,
+      // Gemini 3.x thinks by default; extraction doesn't need deep reasoning and
+      // low thinking keeps answers fast. Older models don't accept thinkingLevel.
+      ...(/gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
       abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     },
   });
@@ -79,6 +85,12 @@ function toAnalysisError(error: unknown): AnalysisError {
     }
     if (error.status === 404) {
       return new AnalysisError("config", "Модель Gemini не найдена: проверьте GEMINI_MODEL.");
+    }
+    if (error.status === 503) {
+      return new AnalysisError(
+        "upstream",
+        "Модель Gemini сейчас перегружена. Попробуйте через минуту.",
+      );
     }
   }
   return new AnalysisError(

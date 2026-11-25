@@ -10,7 +10,7 @@ type Props = {
 export function Section({ title, aside, children }: Props) {
   return (
     <section className="border-t border-line py-7 first:border-t-0 first:pt-0">
-      <div className="mb-4 flex items-baseline justify-between gap-4">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-ink">{title}</h3>
         {aside && <div className="text-[13px] text-muted">{aside}</div>}
       </div>

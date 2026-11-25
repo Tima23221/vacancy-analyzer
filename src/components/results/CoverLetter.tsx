@@ -29,8 +29,8 @@ export function CoverLetter({ text }: { text: string }) {
 
   return (
     <div className="rounded-xl border border-line-strong bg-field">
-      <p className="whitespace-pre-line px-5 pb-4 pt-5 text-[16px] leading-[1.7] text-ink">{text}</p>
-      <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
+      <p className="whitespace-pre-line px-4 pb-4 pt-5 text-[16px] sm:px-5 leading-[1.7] text-ink">{text}</p>
+      <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 sm:px-5">
         <span className="text-[13px] text-muted tabular-nums">{words} {plural(words, ["слово", "слова", "слов"])}
         </span>
         <button

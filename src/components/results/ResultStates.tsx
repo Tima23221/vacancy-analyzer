@@ -10,7 +10,7 @@ const WHAT_YOU_GET = [
 
 export function EmptyState({ onInsertSample }: { onInsertSample: () => void }) {
   return (
-    <div className="flex h-full flex-col justify-center">
+    <div className="lg:pt-2">
       <h2 className="max-w-[22ch] text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink">
         Здесь появится разбор вакансии
       </h2>
@@ -69,7 +69,7 @@ function Bar({ className, width }: { className: string; width?: number }) {
 export function ResultsSkeleton({ withScore }: { withScore: boolean }) {
   return (
     <div aria-busy="true" aria-live="polite">
-      <span className="sr-only">Разбираем вакансию, это займёт 10–20 секунд.</span>
+      <span className="sr-only">Разбираем вакансию, это займёт 10–30 секунд.</span>
       <Bar className="h-7 w-2/3" />
       {withScore && (
         <div className="mt-8">

@@ -21,7 +21,7 @@ export function Requirements({
   hasResume: boolean;
 }) {
   return (
-    <div className="grid gap-x-10 gap-y-7 md:grid-cols-2">
+    <div className="grid gap-x-10 gap-y-7 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
       <RequirementList title="Обязательные" items={mustHave} hasResume={hasResume} />
       <RequirementList title="Желательные" items={niceToHave} hasResume={hasResume} />
     </div>

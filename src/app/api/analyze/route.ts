@@ -3,8 +3,8 @@ import { analyzeRequestSchema } from "@/lib/analysis-schema";
 import { AnalysisError, analyzeVacancy } from "@/lib/gemini";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Two attempts × 25 s timeout fit into this budget.
-export const maxDuration = 60;
+// Two attempts × 40 s timeout fit into this budget.
+export const maxDuration = 90;
 
 function errorResponse(status: number, message: string, headers?: HeadersInit) {
   return NextResponse.json({ error: message }, { status, headers });

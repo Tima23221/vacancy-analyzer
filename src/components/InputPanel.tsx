@@ -2,6 +2,7 @@
 
 import { FileText, LoaderCircle, Sparkle } from "lucide-react";
 import type { FormEvent } from "react";
+import { plural } from "@/lib/plural";
 import { RESUME_MAX_CHARS, VACANCY_MAX_CHARS, VACANCY_MIN_CHARS } from "@/lib/limits";
 import { TextAreaField } from "./TextAreaField";
 
@@ -26,7 +27,8 @@ export function InputPanel({
   onInsertSampleResume,
   loading,
 }: Props) {
-  const tooShort = vacancy.trim().length < VACANCY_MIN_CHARS;
+  const missing = VACANCY_MIN_CHARS - vacancy.trim().length;
+  const tooShort = missing > 0;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -83,8 +85,8 @@ export function InputPanel({
         </button>
         <span className="text-[13px] text-muted">
           {tooShort && vacancy.length > 0
-            ? `Ещё ${VACANCY_MIN_CHARS - vacancy.trim().length} символов до минимума.`
-            : "Обычно 10–20 секунд."}
+            ? `Ещё ${missing} ${plural(missing, ["символ", "символа", "символов"])} до минимума.`
+            : "Обычно 10–30 секунд."}
         </span>
       </div>
     </form>
