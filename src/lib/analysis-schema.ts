@@ -50,10 +50,23 @@ const matchSchema = z.object({
   score: z.coerce.number().min(0).max(100).transform(Math.round),
   summary: z.string().trim().min(1),
   strengths: z.array(z.string().trim().min(1)).max(8),
-  gaps: z.array(z.string().trim().min(1)).max(8),
+  // Each gap points at the requirement it concerns, so the server can keep
+  // requirement statuses and the gap list consistent (see reconcile.ts).
+  gaps: z
+    .array(
+      z.union([
+        z.string().trim().min(1).transform((text) => ({ text, requirement: "" })),
+        z.object({
+          text: z.string().trim().min(1),
+          requirement: z.string().trim().optional().default(""),
+        }),
+      ]),
+    )
+    .max(8),
 });
 
-export const analysisSchema = z.object({
+/** Model output as validated by zod, before reconcileAnalysis(). */
+export const rawAnalysisSchema = z.object({
   vacancyTitle: z.string().trim().min(1),
   language: z.string().trim().min(2),
   requirements: z.object({
@@ -70,7 +83,12 @@ export const analysisSchema = z.object({
   coverLetter: z.string().trim().min(1),
 });
 
-export type Analysis = z.infer<typeof analysisSchema>;
+export type RawAnalysis = z.infer<typeof rawAnalysisSchema>;
+export type Gap = NonNullable<RawAnalysis["match"]>["gaps"][number];
+
+/** What the API returns to the UI. */
+export type Match = Omit<NonNullable<RawAnalysis["match"]>, "gaps"> & { gaps: string[] };
+export type Analysis = Omit<RawAnalysis, "match"> & { match: Match | null };
 export type Requirement = z.infer<typeof requirementSchema>;
 export type RedFlag = z.infer<typeof redFlagSchema>;
 export type FlagCategory = (typeof FLAG_CATEGORIES)[number];
@@ -141,7 +159,22 @@ export const geminiResponseSchema: Schema = {
         score: { type: Type.INTEGER, description: "0–100" },
         summary: { type: Type.STRING, description: "1–2 предложения" },
         strengths: stringList("Что совпадает, до 5 пунктов"),
-        gaps: stringList("Чего не хватает, до 5 пунктов"),
+        gaps: {
+          type: Type.ARRAY,
+          description: "Чего не хватает, до 5 пунктов",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              text: { type: Type.STRING, description: "Чего не хватает" },
+              requirement: {
+                type: Type.STRING,
+                description: "Дословный текст связанного требования или пустая строка",
+              },
+            },
+            required: ["text", "requirement"],
+            propertyOrdering: ["text", "requirement"],
+          },
+        },
       },
       required: ["score", "summary", "strengths", "gaps"],
       propertyOrdering: ["score", "summary", "strengths", "gaps"],

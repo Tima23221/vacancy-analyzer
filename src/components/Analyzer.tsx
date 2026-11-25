@@ -21,13 +21,38 @@ export function Analyzer() {
   const [state, setState] = useState<State>({ status: "idle" });
   const controllerRef = useRef<AbortController | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  // How the user last interacted: decides whether the result title shows a focus ring.
+  const usedKeyboardRef = useRef(false);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) usedKeyboardRef.current = true;
+    };
+    const onPointer = () => {
+      usedKeyboardRef.current = false;
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, []);
+
   // Move focus to the result so keyboard and screen-reader users land on it.
+  // The submit button is disabled while loading, so focus falls to <body> and
+  // browsers would treat the programmatic focus as :focus-visible even after a
+  // mouse click; we show the ring only after keyboard interaction.
   useEffect(() => {
     if (state.status === "done") {
-      resultRef.current?.querySelector<HTMLElement>("#result-title")?.focus({ preventScroll: true });
+      const title = resultRef.current?.querySelector<HTMLElement>("#result-title");
+      if (title) {
+        const keyboard = usedKeyboardRef.current;
+        title.dataset.focusRing = keyboard ? "on" : "off";
+        title.focus({ preventScroll: true, focusVisible: keyboard } as FocusOptions);
+      }
       if (window.matchMedia("(max-width: 1023px)").matches) {
         resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }

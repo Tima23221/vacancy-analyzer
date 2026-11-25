@@ -1,6 +1,7 @@
 import "server-only";
 import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai";
-import { analysisSchema, geminiResponseSchema, type Analysis } from "./analysis-schema";
+import { geminiResponseSchema, rawAnalysisSchema, type Analysis } from "./analysis-schema";
+import { reconcileAnalysis } from "./reconcile";
 import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
 // Stable Flash model available on the free tier. Newer previews (e.g. gemini-3.8-flash)
@@ -59,10 +60,10 @@ async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
   const text = response.text;
   if (!text) throw new Error("Empty response from model");
 
-  const parsed = analysisSchema.parse(JSON.parse(text));
-  // Never show a score the model invented without a resume.
-  if (!resume) parsed.match = null;
-  return parsed;
+  const parsed = rawAnalysisSchema.parse(JSON.parse(text));
+  // Drops a score invented without a resume and makes requirement statuses
+  // agree with the "Не хватает" list.
+  return reconcileAnalysis(parsed, Boolean(resume));
 }
 
 /** Errors that will not get better on a second try. */

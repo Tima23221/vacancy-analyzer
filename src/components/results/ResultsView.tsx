@@ -16,7 +16,7 @@ export function ResultsView({ analysis, hasResume }: { analysis: Analysis; hasRe
       <h2
         id="result-title"
         tabIndex={-1}
-        className="mb-8 max-w-[32ch] text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-ink focus:outline-none sm:text-[28px]"
+        className="mb-8 max-w-[32ch] text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-ink outline-hidden data-[focus-ring=on]:focus-visible:outline-2 data-[focus-ring=on]:focus-visible:outline-solid data-[focus-ring=on]:focus-visible:outline-offset-4 data-[focus-ring=on]:focus-visible:outline-accent sm:text-[28px]"
       >
         {analysis.vacancyTitle}
       </h2>

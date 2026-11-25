@@ -52,7 +52,7 @@ export function TextAreaField({
         placeholder={placeholder}
         required={required}
         aria-describedby={`${hintId} ${counterId}`}
-        className="block w-full resize-y rounded-[10px] border border-line-strong bg-field px-3.5 py-3 text-[15px] leading-relaxed text-ink placeholder:text-muted/80 transition-colors hover:border-ink/40 focus:border-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/30"
+        className="block w-full resize-y rounded-[10px] border border-line-strong bg-field px-3.5 py-3 text-[15px] leading-relaxed text-ink placeholder:text-muted/80 transition-colors hover:border-ink/40 focus:border-accent focus:outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-0 focus-visible:outline-accent/30"
       />
       <div className="mt-1.5 flex justify-between gap-3 text-[13px]">
         <span id={hintId} className="text-muted">

@@ -1,3 +1,4 @@
+import { Send } from "lucide-react";
 import { Analyzer } from "@/components/Analyzer";
 
 export default function Home() {
@@ -14,9 +15,21 @@ export default function Home() {
         <Analyzer />
       </main>
 
-      <footer className="border-t border-line py-6 text-[13px] text-muted">
-        Тексты уходят в Google Gemini только для разбора, само приложение их не хранит. На бесплатном тарифе
-        Google может использовать запросы для улучшения моделей, поэтому телефон и почту из резюме лучше убрать.
+      <footer className="flex flex-col gap-3 border-t border-line py-6 text-[13px] text-muted sm:flex-row sm:items-baseline sm:justify-between sm:gap-10">
+        <p className="max-w-[80ch]">
+          Тексты уходят в Google Gemini только для разбора, само приложение их не хранит. На бесплатном тарифе
+          Google может использовать запросы для улучшения моделей, поэтому телефон и почту из резюме лучше убрать.
+        </p>
+        <a
+          href="https://t.me/Timurllnk"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded text-ink-soft underline decoration-line-strong underline-offset-[3px] transition-colors hover:text-accent hover:decoration-current"
+        >
+          <Send aria-hidden className="size-3.5" />
+          Telegram @Timurllnk
+          <span className="sr-only">(откроется в новой вкладке)</span>
+        </a>
       </footer>
     </div>
   );
