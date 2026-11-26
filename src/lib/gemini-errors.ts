@@ -50,14 +50,29 @@ export function classify(error: unknown): FailureKind {
   return "network";
 }
 
-/** A second attempt can help. 429 is never retried: it would only burn quota. */
-export function isRetryable(kind: FailureKind): boolean {
-  return kind === "overloaded" || kind === "timeout" || kind === "server" || kind === "network" || kind === "bad_output";
-}
-
-/** The primary model is the problem, so the retry goes to the fallback model. */
-export function shouldUseFallback(kind: FailureKind): boolean {
-  return kind === "overloaded" || kind === "timeout";
+/**
+ * Where the single retry goes, or null for no retry.
+ * - 503, timeout: the primary model is the problem → fallback model.
+ * - 429: the primary model's quota is spent (free tier: 20 requests/day per
+ *   model for Flash). The fallback has its own quota → fallback model. Never
+ *   the same model again: that would only hit the same exhausted quota.
+ * - 5xx, network, malformed output: transient → same model again.
+ * - 400, 401/403, 404: a second call would fail the same way → no retry.
+ */
+export function retryTarget(kind: FailureKind, primary: string, fallback: string): string | null {
+  switch (kind) {
+    case "overloaded":
+    case "timeout":
+      return fallback;
+    case "quota":
+      return fallback !== primary ? fallback : null;
+    case "server":
+    case "network":
+    case "bad_output":
+      return primary;
+    default:
+      return null;
+  }
 }
 
 const MESSAGES: Record<FailureKind, { code: AnalysisErrorCode; text: string }> = {
