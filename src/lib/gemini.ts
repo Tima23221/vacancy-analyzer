@@ -1,5 +1,5 @@
 import "server-only";
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { geminiResponseSchema, rawAnalysisSchema, type Analysis } from "./analysis-schema";
 import {
   AnalysisError,
@@ -14,11 +14,13 @@ import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
 export { AnalysisError } from "./gemini-errors";
 
-// Stable Flash model on the free tier. It does hit 503 "high demand" at peak
-// times, which is why a fallback model exists below.
-export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+// Chosen 26.11.2026 from models.list for the free-tier key, each checked with a
+// real request: the newest Flash / Flash-Lite that actually answered. Newer
+// gemini-3.7-flash, gemini-3.8-flash and gemini-3.5-flash-lite were at 503
+// "high demand" on the free tier; switch via GEMINI_MODEL / GEMINI_FALLBACK_MODEL.
+export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 // Lighter model with separate capacity: the retry goes here on 503 or timeout.
-export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
+export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.1-flash-lite";
 
 // Per-attempt timeout. Both attempts must also fit into TOTAL_BUDGET_MS, which
 // stays under the route's maxDuration (60 s) with room for validation.
@@ -48,11 +50,50 @@ class EmptyResponseError extends Error {
   name = "EmptyResponseError";
 }
 
+/*
+  Gemini 3.x thinks by default. Extraction doesn't need deep reasoning, so we ask
+  for the least thinking the model allows: MINIMAL where supported (≈5 s), LOW
+  otherwise. Some models reject MINIMAL with 400 "Thinking level MINIMAL is not
+  supported" (seen on gemini-3.7-flash and gemini-3.8-flash); such models are
+  remembered here, and unknown ones are learned on the first 400.
+  Older models (2.x) don't accept thinkingLevel at all.
+*/
+const noMinimalThinking = new Set(["gemini-3.7-flash", "gemini-3.8-flash"]);
+
+function thinkingLevelFor(model: string): ThinkingLevel | undefined {
+  if (!/gemini-3/.test(model)) return undefined;
+  return noMinimalThinking.has(model) ? ThinkingLevel.LOW : ThinkingLevel.MINIMAL;
+}
+
+function isUnsupportedThinkingLevel(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 400 && /thinking level/i.test(error.message);
+}
+
 async function requestOnce(
   model: string,
   vacancy: string,
   resume: string,
   timeoutMs: number,
+): Promise<Analysis> {
+  const startedAt = Date.now();
+  try {
+    return await generate(model, vacancy, resume, timeoutMs, thinkingLevelFor(model));
+  } catch (error) {
+    // Not a real failure: the model just wants more thinking. Learn it and redo
+    // the call right away with LOW, within the same attempt's time.
+    if (!isUnsupportedThinkingLevel(error) || thinkingLevelFor(model) !== ThinkingLevel.MINIMAL) throw error;
+    noMinimalThinking.add(model);
+    console.warn(`[analyze] ${model} rejects thinkingLevel MINIMAL, using LOW`);
+    return generate(model, vacancy, resume, timeoutMs - (Date.now() - startedAt), ThinkingLevel.LOW);
+  }
+}
+
+async function generate(
+  model: string,
+  vacancy: string,
+  resume: string,
+  timeoutMs: number,
+  thinkingLevel: ThinkingLevel | undefined,
 ): Promise<Analysis> {
   const response = await getClient().models.generateContent({
     model,
@@ -62,10 +103,7 @@ async function requestOnce(
       responseMimeType: "application/json",
       responseSchema: geminiResponseSchema,
       temperature: 0.4,
-      // Gemini 3.x thinks by default. Extraction doesn't need deep reasoning, and
-      // minimal thinking keeps answers well inside the attempt timeout.
-      // Older models don't accept thinkingLevel.
-      ...(/gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } } : {}),
+      ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
       httpOptions: { timeout: timeoutMs },
       abortSignal: AbortSignal.timeout(timeoutMs),
     },
