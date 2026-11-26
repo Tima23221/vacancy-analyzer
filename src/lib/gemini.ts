@@ -1,26 +1,30 @@
 import "server-only";
-import { ApiError, GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { geminiResponseSchema, rawAnalysisSchema, type Analysis } from "./analysis-schema";
+import {
+  AnalysisError,
+  classify,
+  describe,
+  isRetryable,
+  shouldUseFallback,
+  toAnalysisError,
+} from "./gemini-errors";
 import { reconcileAnalysis } from "./reconcile";
 import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
-// Stable Flash model available on the free tier. Newer previews (e.g. gemini-3.8-flash)
-// can be enabled via GEMINI_MODEL, but on the free tier they often answer 503 "high demand".
+export { AnalysisError } from "./gemini-errors";
+
+// Stable Flash model on the free tier. It does hit 503 "high demand" at peak
+// times, which is why a fallback model exists below.
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
-// Per-attempt timeout. Two attempts must fit into the route's maxDuration (60 s).
-const REQUEST_TIMEOUT_MS = 25_000;
+// Lighter model with separate capacity: the retry goes here on 503 or timeout.
+export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 
-export type AnalysisErrorCode = "rate_limited" | "config" | "upstream";
-
-export class AnalysisError extends Error {
-  constructor(
-    public code: AnalysisErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "AnalysisError";
-  }
-}
+// Per-attempt timeout. Both attempts must also fit into TOTAL_BUDGET_MS, which
+// stays under the route's maxDuration (60 s) with room for validation.
+const ATTEMPT_TIMEOUT_MS = 25_000;
+const TOTAL_BUDGET_MS = 52_000;
+const MIN_SECOND_ATTEMPT_MS = 8_000;
 
 let client: GoogleGenAI | null = null;
 
@@ -29,20 +33,27 @@ function getClient(): GoogleGenAI {
   if (!apiKey) {
     throw new AnalysisError("config", "Сервер не настроен: не задан GEMINI_API_KEY.");
   }
-  client ??= new GoogleGenAI({
-    apiKey,
-    // We handle retries ourselves: exactly one, and never on 429.
-    httpOptions: { timeout: REQUEST_TIMEOUT_MS, retryOptions: { attempts: 1 } },
-  });
+  // We handle retries ourselves: exactly one, and never on 429.
+  client ??= new GoogleGenAI({ apiKey, httpOptions: { retryOptions: { attempts: 1 } } });
   return client;
 }
 
-function getModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+function getModels() {
+  const primary = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const fallback = process.env.GEMINI_FALLBACK_MODEL?.trim() || DEFAULT_GEMINI_FALLBACK_MODEL;
+  return { primary, fallback };
 }
 
-async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
-  const model = getModel();
+class EmptyResponseError extends Error {
+  name = "EmptyResponseError";
+}
+
+async function requestOnce(
+  model: string,
+  vacancy: string,
+  resume: string,
+  timeoutMs: number,
+): Promise<Analysis> {
   const response = await getClient().models.generateContent({
     model,
     contents: buildUserPrompt(vacancy, resume),
@@ -52,15 +63,16 @@ async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
       responseSchema: geminiResponseSchema,
       temperature: 0.4,
       // Gemini 3.x thinks by default. Extraction doesn't need deep reasoning, and
-      // minimal thinking keeps answers well inside the 25 s attempt timeout.
+      // minimal thinking keeps answers well inside the attempt timeout.
       // Older models don't accept thinkingLevel.
       ...(/gemini-3/.test(model) ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } } : {}),
-      abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      httpOptions: { timeout: timeoutMs },
+      abortSignal: AbortSignal.timeout(timeoutMs),
     },
   });
 
   const text = response.text;
-  if (!text) throw new Error("Empty response from model");
+  if (!text) throw new EmptyResponseError("Empty response from model");
 
   const parsed = rawAnalysisSchema.parse(JSON.parse(text));
   // Drops a score invented without a resume and makes requirement statuses
@@ -68,56 +80,42 @@ async function requestOnce(vacancy: string, resume: string): Promise<Analysis> {
   return reconcileAnalysis(parsed, Boolean(resume));
 }
 
-/** Errors that will not get better on a second try. */
-function isFinal(error: unknown): boolean {
-  if (error instanceof AnalysisError) return true;
-  if (error instanceof ApiError) {
-    return error.status === 429 || [400, 401, 403, 404].includes(error.status);
-  }
-  return false;
-}
-
-function toAnalysisError(error: unknown): AnalysisError {
-  if (error instanceof AnalysisError) return error;
-  if (error instanceof ApiError) {
-    if (error.status === 429) {
-      return new AnalysisError("rate_limited", "Лимит запросов исчерпан, попробуйте через минуту.");
-    }
-    if (error.status === 401 || error.status === 403) {
-      return new AnalysisError("config", "Сервер не может обратиться к Gemini: проверьте API-ключ.");
-    }
-    if (error.status === 404) {
-      return new AnalysisError("config", "Модель Gemini не найдена: проверьте GEMINI_MODEL.");
-    }
-    if (error.status === 503) {
-      return new AnalysisError(
-        "upstream",
-        "Модель Gemini сейчас перегружена. Попробуйте через минуту.",
-      );
-    }
-  }
-  return new AnalysisError(
-    "upstream",
-    "Не удалось получить разбор от модели. Попробуйте ещё раз через несколько секунд.",
-  );
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiError) return `ApiError ${error.status}`;
-  if (error instanceof Error) return `${error.name}: ${error.message.slice(0, 200)}`;
-  return "unknown error";
-}
-
+/**
+ * Attempt 1 on the primary model. On 503 or timeout, attempt 2 goes to the
+ * fallback model (Flash-Lite); on other transient errors it repeats the primary.
+ * 429, 400, 401/403 and 404 are not retried.
+ */
 export async function analyzeVacancy(vacancy: string, resume: string): Promise<Analysis> {
+  const { primary, fallback } = getModels();
+  const startedAt = Date.now();
+
   try {
-    return await requestOnce(vacancy, resume);
+    return await requestOnce(primary, vacancy, resume, ATTEMPT_TIMEOUT_MS);
   } catch (first) {
-    if (isFinal(first)) throw toAnalysisError(first);
-    console.warn(`[analyze] attempt 1 failed (${describe(first)}), retrying once`);
+    const firstMs = Date.now() - startedAt;
+    const kind = classify(first);
+    const remaining = TOTAL_BUDGET_MS - firstMs;
+
+    if (!isRetryable(kind) || remaining < MIN_SECOND_ATTEMPT_MS) {
+      console.error(`[analyze] ${primary} failed, not retrying (${describe(first, firstMs)})`);
+      throw toAnalysisError(first);
+    }
+
+    const retryModel = shouldUseFallback(kind) ? fallback : primary;
+    console.warn(`[analyze] ${primary} failed, retrying on ${retryModel} (${describe(first, firstMs)})`);
+
+    const secondStartedAt = Date.now();
     try {
-      return await requestOnce(vacancy, resume);
+      const result = await requestOnce(
+        retryModel,
+        vacancy,
+        resume,
+        Math.min(ATTEMPT_TIMEOUT_MS, remaining),
+      );
+      console.info(`[analyze] ${retryModel} succeeded in ${Date.now() - secondStartedAt} ms`);
+      return result;
     } catch (second) {
-      console.error(`[analyze] attempt 2 failed (${describe(second)})`);
+      console.error(`[analyze] ${retryModel} failed too (${describe(second, Date.now() - secondStartedAt)})`);
       throw toAnalysisError(second);
     }
   }

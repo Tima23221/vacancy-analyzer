@@ -3,8 +3,8 @@ import { analyzeRequestSchema } from "@/lib/analysis-schema";
 import { AnalysisError, analyzeVacancy } from "@/lib/gemini";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Worst case: two attempts × 25 s (REQUEST_TIMEOUT_MS in lib/gemini.ts) = 50 s,
-// leaving ~10 s for validation and cold start. 60 s is also the Vercel Hobby
+// Worst case: both Gemini attempts share a 52 s budget (25 s per attempt, see
+// lib/gemini.ts), leaving ~8 s for validation and cold start. 60 s is also the Vercel Hobby
 // ceiling when Fluid Compute is off, so the route deploys on any plan.
 export const maxDuration = 60;
 
@@ -39,7 +39,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ analysis });
   } catch (error) {
     if (error instanceof AnalysisError) {
-      const status = error.code === "rate_limited" ? 429 : error.code === "config" ? 500 : 502;
+      const status =
+        error.kind === "overloaded"
+          ? 503
+          : error.kind === "timeout"
+            ? 504
+            : error.code === "rate_limited"
+              ? 429
+              : error.code === "config"
+                ? 500
+                : 502;
       return errorResponse(status, error.message);
     }
     console.error("[analyze] unexpected error");
