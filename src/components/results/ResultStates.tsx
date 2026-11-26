@@ -69,7 +69,7 @@ function Bar({ className, width }: { className: string; width?: number }) {
 export function ResultsSkeleton({ withScore }: { withScore: boolean }) {
   return (
     <div aria-busy="true" aria-live="polite">
-      <span className="sr-only">Разбираем вакансию, это займёт 10–30 секунд.</span>
+      <span className="sr-only">Разбираем вакансию, обычно это занимает до 30 секунд.</span>
       <Bar className="h-7 w-2/3" />
       {withScore && (
         <div className="mt-8">

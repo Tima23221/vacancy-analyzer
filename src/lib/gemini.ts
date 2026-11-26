@@ -14,18 +14,20 @@ import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
 export { AnalysisError } from "./gemini-errors";
 
-// Chosen 26.11.2026 from models.list for the free-tier key, each checked with a
-// real request: the newest Flash / Flash-Lite that actually answered. Newer
-// gemini-3.7-flash, gemini-3.8-flash and gemini-3.5-flash-lite were at 503
-// "high demand" on the free tier; switch via GEMINI_MODEL / GEMINI_FALLBACK_MODEL.
-export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
-// Lighter model with separate capacity: the retry goes here on 503 or timeout.
+// Flash-Lite models, chosen 26.11.2026 for the free-tier key: Flash models
+// (3.5–3.8) kept answering 503 "high demand", Lite ones answered more often.
+// Lite gets HIGH thinking (see thinkingLevelFor) to make up for the smaller model.
+// Switch via GEMINI_MODEL / GEMINI_FALLBACK_MODEL without a code change.
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+// Older Lite with separate capacity: the retry goes here on 503 or timeout.
 export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.1-flash-lite";
 
-// Per-attempt timeout. Both attempts must also fit into TOTAL_BUDGET_MS, which
-// stays under the route's maxDuration (60 s) with room for validation.
-const ATTEMPT_TIMEOUT_MS = 25_000;
-const TOTAL_BUDGET_MS = 52_000;
+// Per-attempt timeout: a minute, so Lite models with HIGH thinking (~20 s) and
+// Flash models with LOW thinking (20–35 s) can finish. Both attempts must also fit
+// into TOTAL_BUDGET_MS, which stays under the route's maxDuration (150 s) with
+// room for validation and cold start.
+const ATTEMPT_TIMEOUT_MS = 60_000;
+const TOTAL_BUDGET_MS = 125_000;
 const MIN_SECOND_ATTEMPT_MS = 8_000;
 
 let client: GoogleGenAI | null = null;
@@ -62,6 +64,9 @@ const noMinimalThinking = new Set(["gemini-3.7-flash", "gemini-3.8-flash"]);
 
 function thinkingLevelFor(model: string): ThinkingLevel | undefined {
   if (!/gemini-3/.test(model)) return undefined;
+  // Flash-Lite is fast but shallow: with minimal thinking it misjudges grades and
+  // statuses, so it gets HIGH to make up for the smaller model.
+  if (/flash-lite/.test(model)) return ThinkingLevel.HIGH;
   return noMinimalThinking.has(model) ? ThinkingLevel.LOW : ThinkingLevel.MINIMAL;
 }
 

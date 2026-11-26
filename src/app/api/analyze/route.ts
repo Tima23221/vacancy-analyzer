@@ -3,10 +3,11 @@ import { analyzeRequestSchema } from "@/lib/analysis-schema";
 import { AnalysisError, analyzeVacancy } from "@/lib/gemini";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
-// Worst case: both Gemini attempts share a 52 s budget (25 s per attempt, see
-// lib/gemini.ts), leaving ~8 s for validation and cold start. 60 s is also the Vercel Hobby
-// ceiling when Fluid Compute is off, so the route deploys on any plan.
-export const maxDuration = 60;
+// Worst case: both Gemini attempts share a 125 s budget (60 s per attempt, see
+// lib/gemini.ts), leaving ~25 s for validation and cold start. Needs Fluid Compute
+// on Vercel (default for new projects, up to 300 s on every plan); without it the
+// Hobby ceiling is 60 s.
+export const maxDuration = 150;
 
 function errorResponse(status: number, message: string, headers?: HeadersInit) {
   return NextResponse.json({ error: message }, { status, headers });

@@ -86,7 +86,7 @@ export function InputPanel({
         <span className="text-[13px] text-muted">
           {tooShort && vacancy.length > 0
             ? `Ещё ${missing} ${plural(missing, ["символ", "символа", "символов"])} до минимума.`
-            : "Обычно 10–30 секунд."}
+            : "Обычно до 30 секунд, при нагрузке на Gemini — дольше."}
         </span>
       </div>
     </form>

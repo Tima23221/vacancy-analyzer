@@ -13,8 +13,8 @@ type State =
   | { status: "error"; message: string }
   | { status: "done"; analysis: Analysis; hasResume: boolean };
 
-// Slightly longer than the API route's maxDuration (60 s).
-const CLIENT_TIMEOUT_MS = 65_000;
+// Slightly longer than the API route's maxDuration (150 s).
+const CLIENT_TIMEOUT_MS = 160_000;
 
 export function Analyzer() {
   const [vacancy, setVacancy] = useState("");
