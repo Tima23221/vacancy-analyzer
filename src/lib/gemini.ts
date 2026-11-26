@@ -13,11 +13,12 @@ import { SYSTEM_INSTRUCTION, buildUserPrompt } from "./prompt";
 
 export { AnalysisError } from "./gemini-errors";
 
-// Primary: the newest Flash. On the free tier it is often at 503 "high demand"
-// and has only 20 requests/day, so every 503, timeout or 429 falls through to
-// the Lite model, which has its own capacity and quota.
+// Primary: gemini-3.6-flash, the Flash model that actually answered on the free
+// tier (3.7/3.8 were at 503 nearly every time). Flash has only 20 requests/day
+// per model there, so every 503, timeout or 429 falls through to the Lite
+// model, which has its own capacity and quota.
 // Switch via GEMINI_MODEL / GEMINI_FALLBACK_MODEL without a code change.
-export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
 export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 
 // Per-attempt timeout: a minute, so Lite models with HIGH thinking (~20 s) and
